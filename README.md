@@ -4,8 +4,8 @@
 
 Feature | Description | Version
 --------|-------------|--------
-Modules | Allow code to be stored in different files which act as modules | 1
-Variables | Variables can be global or local depending on their definition | 1
+Modules | Allow code to be stored in different files which act as modules | 1
+Variables | Variables can be global or local depending on their definition | 1
 Functions | Functions can be implemented either in MultiScript or - via an external link - in C++ | 2
 
 ## Features
@@ -22,7 +22,7 @@ import 'file/to/module with space'
 
 ### Define a variable
 
-*Syntax: [let] \<varname\>*
+*Syntax: let \<varname\>*
 
 ```
 let a
@@ -30,7 +30,7 @@ let a
 
 ### Assign values to a variable
 
-*Syntax: \<varname\> = \<expression\>
+*Syntax: \<varname\> = \<expression\>*
 
 ```
 let a
@@ -46,8 +46,8 @@ def add(x, y):
   return x + y
 end
 
-def safeAdd(int x: 0, int y: 0)
-  return x + y
+def printInt(int x: 0):
+  debug x
 end
 
 def extern read(x)
