@@ -369,7 +369,7 @@ class List {
         }
 };
 
-#define MODULE_PATH "/users/nuskel/documents/vs-code/ms"
+#define MODULE_PATH "/users/nuskel/documents/vs-code/ms-git/MultiScript"
 
 /*
 
@@ -512,7 +512,7 @@ int main(int argc, char ** argv) {
     ctx.ext().bind("pow", DataType::UNDEFINED, {"b", "e"}, &ms_math_pow);
     ctx.ext().bind("get_info", DataType::OBJECT, {"registry", "id"}, &push_info_object);
 
-    state s = execute(ctx, "examples/test22.ms", args);
+    state s = execute(ctx, "examples/test01.ms", args);
 
     /*
 

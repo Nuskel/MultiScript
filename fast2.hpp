@@ -215,6 +215,25 @@ namespace ms {
         return staticFallback;                                  \
     }
 
+// === Expressions ===
+
+#define MS_EXPR_CHECK_STATES() \
+    if (left != MS_SUCCESS) return left; \
+    if (right != MS_SUCCESS) return right;
+
+#define MS_EXPR_SETUP(expr, taskLeft, taskRight) \
+    leftExpr = expr.setupLeft(taskLeft);         \
+    rightExpr = expr.setupRight(taskRight);
+
+#define MS_EXPR_DO(op)                                              \
+    MS_EXPR_SETUP(expr, 0, 0)                                       \
+    MS_ASSERT_EXPR(ctx, *leftExpr, code, begin, i, left, op)        \
+    MS_ASSERT_EXPR(ctx, *rightExpr, code, i + 1, end, right, op)    \
+    MS_EXPR_CHECK_STATES()
+
+#define MS_EXPR_TASK_PARSE_PARAMS 0
+#define MS_EXPR_TASK_PUSH_ATTRIBUTE 1
+
 // --- MS Source Code ---
 
 namespace ms {
@@ -6758,23 +6777,6 @@ namespace ms {
                 state pushEntityAddress(Context& ctx, Code& code, int begin, int end, const Namespace* base);
         };
 
-        // TODO: move to top
-        #define MS_EXPR_CHECK_STATES() if (left != MS_SUCCESS) return left; \
-                                        if (right != MS_SUCCESS) return right;
-
-        #define MS_EXPR_SETUP(expr, taskLeft, taskRight) \
-            leftExpr = expr.setupLeft(taskLeft);         \
-            rightExpr = expr.setupRight(taskRight);
-
-        #define MS_EXPR_DO(op)                                              \
-            MS_EXPR_SETUP(expr, 0, 0)                                       \
-            MS_ASSERT_EXPR(ctx, *leftExpr, code, begin, i, left, op)        \
-            MS_ASSERT_EXPR(ctx, *rightExpr, code, i + 1, end, right, op)    \
-            MS_EXPR_CHECK_STATES()
-
-        #define MS_EXPR_TASK_PARSE_PARAMS 0
-        #define MS_EXPR_TASK_PUSH_ATTRIBUTE 1
-
         /* Expressions?!?
          *
          *    expr00) 2           -> literal
@@ -6881,8 +6883,19 @@ namespace ms {
         };
 
         struct Expression {
+            
+            /* Owning namespace of the current expression.
+             * Will be altered by the scope operator '::'
+             */
             Namespace* context {nullptr};
 
+            /* An optional target of the expression result. This
+             * can be any entity accepting a value or expression
+             * result (variables, parameters).
+             */
+            Entity* target {nullptr};
+
+            // Parent expression
             Expression* parent {nullptr};
             Expression* left {nullptr};
             Expression* right {nullptr};
@@ -6890,21 +6903,43 @@ namespace ms {
             ExpressionEnum xenum;
 
             ExpressionType type {ExpressionType::UNKNOWN};
+            ExpressionInfo info;
+            ExpressionResult result;
+            XMods<short, ExpressionFlag> flags;
             Operation operation {Operation::NONE};
+
             int task {-1};
             int depth {0};
             int subCount {1};
             int negation {1};
             int precedence {0};
-            bool appendNegationInstruction {true};
-            bool terminator {false};
-            bool assignmentIncluded {false}; // op <target>
-            bool empty {false};
 
-            Entity* target {nullptr};
-            ExpressionInfo info;
-            ExpressionResult result;
-            XMods<short, ExpressionFlag> flags;
+            /* When set to true, the expression parser is allowed
+             * to append 'negate' instructions itself.
+             */
+            bool appendNegationInstruction {true};
+
+            /* True, if the parsed content is of type 'terminator'.
+             * (see lang::isTerminator())
+             */
+            bool terminator {false};
+
+            /* True, if an instruction was added which writes memory
+             * from the stack to a memory container cell. Typically,
+             * this is invoked by data assignments to variables outside
+             * of the 'context' namespace.
+             * 
+             * e.g. assigning global values from a function will
+             *      use the 'agv' instruction
+             * 
+             * If this is false, optimizations like 'add <target>' are
+             * possible and direct assignments remove the need of an
+             * additional stack-to-memory assignment instruction.
+             */
+            bool assignmentIncluded {false};
+
+            /* Whenever the expression was parsed for an empty input. */
+            bool empty {false};
 
             //#ifdef MS_DEBUG
                 int tokenBegin {0}, tokenEnd {0}, tokenOperator {0};
@@ -7026,85 +7061,6 @@ namespace ms {
             }
 
         };
-
-        /*
-        class ExprContext {
-            friend state parseEntity(Context& ctx, ExprContext& expr, Code& code, int from, int to);
-            friend state parseExpression(Context& ctx, ExprContext& expr, Code& code, int begin, int end, int minPrecedence);
-            friend state parse(Context& ctx, Code& code);
-
-            ExprContext* parent {nullptr};
-            ExprContext* child {nullptr};
-
-            // The requester is a Callable like a function or Prototype providing
-            // the ability to be called and constructed. This reference can be used
-            // to get the required argument count or conditions for the expression
-            // evaluation. The field is initialized to nullptr by default but
-            // might be set on a specific active task.
-            Callable* requester {nullptr};
-
-            Namespace* owner {nullptr};
-            Entity* result {nullptr};
-
-            int task {0};
-            int depth {0};
-            int exprCount {1}; // always 1+ EXCEPT on len=0 expressions: will be set by 'parseExpression'
-            int funcParams {1};
-
-            bool onlyReferences {false};
-            bool emptyExpressionAllowed {true};
-            bool voidResultAllowed {false}; // whenever the expression must not return a value
-            bool voidResultRequired {false}; // whenever the expression is not allowed to push a value
-
-            public:
-                ExprContext(int taskId = 0) : task(taskId) {}
-
-                /*
-
-
-
-                DAS MACHST DU GERADE:
-                -> ExprContext überarbeiten, sodass sub-expressions (children)
-                  einige Informationen der Eltern beibehalten:
-
-                  z.b. stream.foreach():
-
-                   stream . foreach ()
-                          |
-                   stream               .. getEntity(stream) =: result
-                   foreach ()           .. task(PUSH_ATTRIBUTES) (da rechts vom .)
-                           |
-                   foreach              .. NEUER ExprContext, aber unter Prämisse (PUSH_ATTRIBUTE)!!
-                   ()
-
-                    => also:
-                        a) testen, ob man ein Kind eines Eltern-Expr-Contexts ist
-                        b) wenn ja, abfragen, was die Aufgabe ist, und ob man selbst 'nur' ein Attribut oder ein Entity ist
-                           wenn nein, normal nach 'entity' in 'namespace' suchen
-
-                    => dafür TODO:
-                        - Konzept mit parent*, child_left*, child_right* aufbauen
-                        - dafür Funktion einbinden, damit nicht immer ein neuer ExprContext erstellt werden muss
-                        - dynamisches erzeugen und LÖSCHEN!!!
-                        - Meta-Daten und DEBUG!!!
-
-                */
-
-                /* Which fields are inherited to a child expression?
-                 *
-                 *  + p_task -> parent task 
-                 * 
-                 */
-                /*
-                void inherit() {
-                    
-                }
-
-                state enter(int task) {
-                    return MS_SUCCESS;
-                }
-        };
-        */
 
         class CompileTimeFunction : public Entity {
 
@@ -9677,6 +9633,8 @@ namespace ms {
             return s;
         }
 
+        // Loops
+
         LoopType findLoopType(Context& ctx, Code& code, int index) {
             
             /* for ..
@@ -9883,6 +9841,8 @@ namespace ms {
 
             return MS_SUCCESS;
         }
+
+        // =v= MAIN PARSING ROUTINE =v=
 
         state parse(Context& ctx, Code& code) {
             if (!code.isTokenized())
@@ -10298,6 +10258,8 @@ namespace ms {
             return s;
         }
 
+        // =^= ==================== =^=
+
         // -- Language Access Functions
 
         /* This function reads the source file content and tokenizes it afterwards.
@@ -10470,8 +10432,6 @@ namespace ms {
         struct InstructionSupplier;
 
         class VM;
-        class vm_obj;
-        class vm_function;
 
         namespace alu {
 
@@ -10511,7 +10471,6 @@ namespace ms {
 
         state init_vm(Context& ctx, VM& vm);
         state eval(VM&, InstructionSupplier& is, operation);
-        
 
         // -- Definitions
 
@@ -10994,7 +10953,10 @@ namespace ms {
 
         // -- Functions
 
-        #define MS_ALU_PRIMITIVE_COMBI(ltransform, rtransform) [](VM& vm, IData* left, IData* right, Operation op) { return alu::combinePrimitives(vm, ltransform(left), rtransform(right), op); }
+        #define MS_ALU_PRIMITIVE_COMBI(ltransform, rtransform) \
+            [](VM& vm, IData* left, IData* right, Operation op) { \
+                return alu::combinePrimitives(vm, ltransform(left), rtransform(right), op); \
+            }
 
         state init_vm(Context& ctx, VM& vm) {
             // TODO: check for mode
@@ -11042,10 +11004,6 @@ namespace ms {
             }
 
             return MS_SUCCESS;
-        }
-
-        state call_function(VM& vm, vm_function& f) {
-
         }
 
         state eval(VM& vm, InstructionSupplier& is, operation op) {
