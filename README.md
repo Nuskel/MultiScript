@@ -1,6 +1,6 @@
-# MultiScript
+# MultiScript v. 2
 
-__V2__
+## Overview
 
 Feature | Description | Version
 --------|-------------|--------
@@ -12,12 +12,29 @@ Functions | Functions can be implemented either in MultiScript or - via an exter
 
 ### Import a module
 
-**Syntax: import <module>**
-   .. with <module> as the file name without the extension
-   .. can be put in a string for whitespace support
+ *➜ Syntax: import <module>*
+    .. with <module> as the file name without the extension
+    .. can be put in a string for whitespace support
 
-```lua
+`
 import name_of_module
 import file/to/module
 import 'file/to/module with space'
-```
+`
+
+## Define a variable
+
+ *➜ Syntax: [let] \<varname\>*
+
+`
+let a
+`
+
+## Assign values to a variable
+
+`
+let a
+a = 20
+
+let b = 30
+`
