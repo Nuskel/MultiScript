@@ -12,9 +12,7 @@ Functions | Functions can be implemented either in MultiScript or - via an exter
 
 ### Import a module
 
-\t*Syntax: import \<module\>*
-
-\t\t'module' can be a simple token, a path or a string
+*Syntax: import \<module\>  -- module as a token, path or string*
 
 ```
 import name_of_module
@@ -24,7 +22,7 @@ import 'file/to/module with space'
 
 ### Define a variable
 
-\t*➜ Syntax: [let] \<varname\>*
+*Syntax: [let] \<varname\>*
 
 ```
 let a
@@ -32,9 +30,50 @@ let a
 
 ### Assign values to a variable
 
+*Syntax: \<varname\> = \<expression\>
+
 ```
 let a
 a = 20
 
 let b = 30
 ```
+
+### Define a function
+
+```
+def add(x, y):
+  return x + y
+end
+
+def safeAdd(int x: 0, int y: 0)
+  return x + y
+end
+
+def extern read(x)
+```
+
+### Expressions
+
+```
+let a = 1 + 2
+let b = 1 * 3 + 2
+let c = 1 * (3 + 2)
+let d = add(a, 1) + 1 * 2
+```
+
+### While loops
+
+*Syntax: while \<logical expression\> do ... end*
+
+```
+let x = 0
+
+while x < 20 do
+  x = x + 1
+end
+
+debug x
+```
+
+> 20
